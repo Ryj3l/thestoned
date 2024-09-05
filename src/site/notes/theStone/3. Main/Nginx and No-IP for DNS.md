@@ -8,12 +8,12 @@
 
 ## 📝 Notes
 
-To set up this configuration with your domain `no-ip.zapto.org` (using No-IP for DNS forwarding) but hosting on your internal server (`Obsidian.int.yourdomain.com`) and forwarding traffic through your firewall, you can follow these steps:
+To set up this configuration with your domain `no-ip.zapto.org` (using No-IP for DNS forwarding) but hosting Nginx on your internal server (`nginx.yourdomain.com`) and forwarding traffic through your firewall, you can follow these steps:
 
 ### 1. **Set Up No-IP for DNS Forwarding**
 
 - **No-IP Setup**: Ensure that you’ve correctly configured `no-ip.zapto.org` on No-IP to point to the public IP address of your firewall.
-- **Firewall Port Forwarding**: Configure your firewall to forward incoming traffic on ports 80 (HTTP) and 443 (HTTPS) to the internal server (`Obsidian.int.yourdomain.com`). 
+- **Firewall Port Forwarding**: Configure your firewall to forward incoming traffic on ports 80 (HTTP) and 443 (HTTPS) to the internal server (`nginx.yourdomain.com`). 
   - Port 80 should forward to the Nginx server’s port 80.
   - Port 443 should forward to the Nginx server’s port 443.
 
@@ -27,7 +27,7 @@ server {
     server_name no-ip.zapto.org www.no-ip.zapto.org;
 
     location / {
-        proxy_pass http://Obsidian.yourdomain.com:8080;
+        proxy_pass http://nginx.yourdomain.com:8080;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -47,7 +47,7 @@ server {
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
     location / {
-        proxy_pass http://Obsidian.yourdomain.com:8080;
+        proxy_pass http://nginx.yourdomain.com:8080;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -58,7 +58,7 @@ server {
 
 #### Changes in the Nginx Configuration:
 - **server_name**: Replace `yourdomain.com` with your external No-IP domain (`no-ip.zapto.org`).
-- **proxy_pass**: Update this to point to your internal server, `Obsidian.yourdomain.com`, which is likely hosting the application on port 8080.
+- **proxy_pass**: Update this to point to your internal server, `nginx.yourdomain.com`, which is likely hosting the application on port 8080.
   - If your application is running on a different port, modify this accordingly.
 - **SSL Configuration**: You need SSL certificates for `no-ip.zapto.org`. You can use Let's Encrypt to generate SSL certificates for this domain.
 
@@ -91,7 +91,7 @@ You need to ensure that your firewall is forwarding traffic properly:
 
 ### 5. **DNS Resolution for Internal Server**
 
-Since your internal server is named `Obsidian.yourdomain.com`, ensure that this domain resolves correctly in your internal network. If you're using a private DNS server, ensure that it points to the correct internal IP for `Obsidian.yourdomain.com`.
+Since your internal server is named `nginx.yourdomain.com`, ensure that this domain resolves correctly in your internal network. If you're using a private DNS server, ensure that it points to the correct internal IP for `nginx.yourdomain.com`.
 
 ### 6. **Testing the Setup**
 
