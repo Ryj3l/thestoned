@@ -1,6 +1,7 @@
-const express = require('express')
-const app = express()
-const port = 8080; 
+const express = require('express');
+const path = require('path'); // Import path module to handle file paths
+const app = express();
+const port = 8080;
 
 // Example search logic
 const searchHandler = async (queryParams) => {
@@ -18,35 +19,30 @@ const searchHandler = async (queryParams) => {
 app.get('/api/search', async (req, res) => {
   try {
     // Call the searchHandler with the query parameters
-      let result = await searchHandler(req.query);  
+    let result = await searchHandler(req.query);  
 
     // Send response back to client
-      res.status(200).send(result);
-    } catch (error) {
-      // Handle any errors that occur
-      res.status(500).send({error: 'An error occurred during search'});
-    }
+    res.status(200).json(result);
+  } catch (error) {
+    // Handle any errors that occur
+    res.status(500).json({error: 'An error occurred during search'});
   }
-)
+});
 
 // Serve static files from the "dist" directory
-  app.use(express.static('dist'));
+app.use(express.static(path.join(__dirname, 'dist')));
 
 // Handle 404 page separately
-  app.get('/404', (req, res) => {
-  res.status(404).sendFile(__dirname + '/dist/404.html'); // Assuming there's a 404.html in the dist directory
-  }
-);
+app.get('/404', (req, res) => {
+  res.status(404).sendFile(path.join(__dirname, 'dist', '404.html')); // Ensure correct file path
+});
 
 // Catch-all for undefined routes and redirect to the /404 route
-  app.get('*', (req, res) => {
+app.get('*', (req, res) => {
   res.redirect('/404');
-  }
-);
+});
 
-  app.listen(port, () => {
+// Start the server
+app.listen(port, () => {
   console.log(`Digital garden running on port ${port}`);
-  }
-);
-
-
+});
