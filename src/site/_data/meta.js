@@ -1,15 +1,18 @@
 require("dotenv").config();
-const { globSync } = require("glob");
+const glob = require("glob");  // Correct way to import glob
 
 module.exports = async (data) => {
   let baseUrl = process.env.SITE_BASE_URL || "";
   if (baseUrl && !baseUrl.startsWith("http")) {
     baseUrl = "https://" + baseUrl;
   }
-  let themeStyle = globSync("src/site/styles/_theme.*.css")[0] || "";
+
+  // Use glob.sync instead of globSync
+  let themeStyle = glob.sync("src/site/styles/_theme.*.css")[0] || "";
   if (themeStyle) {
     themeStyle = themeStyle.split("site")[1];
   }
+
   let bodyClasses = [];
   let noteIconsSettings = {
     filetree: false,
@@ -58,6 +61,7 @@ module.exports = async (data) => {
     showCreated: process.env.SHOW_CREATED_TIMESTAMP == "true",
     showUpdated: process.env.SHOW_UPDATED_TIMESTAMP == "true",
   };
+
   const meta = {
     env: process.env.ELEVENTY_ENV,
     theme: process.env.THEME,
