@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Navigate to the project directory
-cd ~/my-digital-garden
+cd ~/theStoned
 
 # Fetch the latest changes from the GitHub repository
 git fetch origin
