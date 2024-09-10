@@ -18,7 +18,6 @@ const tagRegex = /(^|\s|\>)(#[^\s!@#$%^&*()=+\.,\[{\]};:'"?><]+)(?!([^<]*>))/g;
 
 /**
  * Asynchronously transforms an image using `eleventy-img` plugin.
- * This is a long-running task (I/O-bound), so it should not block the main process.
  */
 async function transformImage(src, cls, alt, sizes, widths = ["500", "700", "auto"]) {
   let options = {
@@ -168,7 +167,7 @@ module.exports = function (eleventyConfig) {
     return variable;
   });
 
-  // Adding the callout block transformation (from older version)
+  // Adding the callout block transformation from the older version
   eleventyConfig.addTransform("callout-block", function (str) {
     const parsed = parse(str);
     const transformCalloutBlocks = (blockquotes = parsed.querySelectorAll("blockquote")) => {
