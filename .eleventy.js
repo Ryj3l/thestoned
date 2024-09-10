@@ -1,7 +1,7 @@
 const slugify = require("@sindresorhus/slugify");
 const markdownIt = require("markdown-it");
-const fs = require("fs");
-const fsp = fs.promises;  // For asynchronous file operations
+const fs = require("fs"); // For synchronous file operations
+const fsp = fs.promises;  // For asynchronous file operations (promises API)
 const matter = require("gray-matter");
 const faviconsPlugin = require("eleventy-plugin-gen-favicons");
 const tocPlugin = require("eleventy-plugin-nesting-toc");
@@ -18,14 +18,13 @@ const tagRegex = /(^|\s|\>)(#[^\s!@#$%^&*()=+\.,\[{\]};:'"?><]+)(?!([^<]*>))/g;
 
 /**
  * Asynchronously transforms an image using `eleventy-img` plugin.
- * This is a long-running task (I/O-bound), so it should not block the main process.
  */
 async function transformImage(src, cls, alt, sizes, widths = ["500", "700", "auto"]) {
   let options = {
     widths: widths,
     formats: ["webp", "jpeg"],
-    outputDir: "./dist/img/optimized",  // Where to save the optimized images
-    urlPath: "/img/optimized",          // The URL path to use in the output HTML
+    outputDir: "./dist/img/optimized",
+    urlPath: "/img/optimized",
   };
 
   await Image(src, options);
@@ -98,6 +97,22 @@ function getAnchorLink(filePath, linkTitle) {
   return `<a ${Object.keys(attributes).map(key => `${key}="${attributes[key]}"`).join(" ")}>${innerHTML}</a>`;
 }
 
+/**
+ * Synchronous version of transformImage.
+ */
+function transformImageSync(src, cls, alt, sizes, widths = ["500", "700", "auto"]) {
+  let options = {
+    widths: widths,
+    formats: ["webp", "jpeg"],
+    outputDir: "./dist/img/optimized",
+    urlPath: "/img/optimized",
+  };
+
+  Image(src, options);  // async generation
+  let metadata = Image.statsSync(src, options);  // sync fetch
+  return metadata;
+}
+
 module.exports = function (eleventyConfig) {
   eleventyConfig.setLiquidOptions({
     dynamicPartials: true,
@@ -159,11 +174,6 @@ module.exports = function (eleventyConfig) {
     return "";
   });
 
-  // Add missing jsonify filter
-  eleventyConfig.addFilter("jsonify", function (variable) {
-    return JSON.stringify(variable) || '""';
-  });
-
   eleventyConfig.addFilter("validJson", function (variable) {
     if (Array.isArray(variable)) {
       return variable.map((x) => x.replaceAll("\\", "\\\\")).join(",");
@@ -173,7 +183,11 @@ module.exports = function (eleventyConfig) {
     return variable;
   });
 
-  // Adding the callout block transformation (from older version)
+  eleventyConfig.addFilter("jsonify", function (variable) {
+    return JSON.stringify(variable) || '""';
+  });
+
+  // Adding the callout block transformation
   eleventyConfig.addTransform("callout-block", function (str) {
     const parsed = parse(str);
     const transformCalloutBlocks = (blockquotes = parsed.querySelectorAll("blockquote")) => {
@@ -213,12 +227,37 @@ module.exports = function (eleventyConfig) {
         const alt = imageTag.getAttribute("alt");
         const width = imageTag.getAttribute("width") || '';
         try {
-          const meta = transformImage(`./src/site${decodeURI(src)}`, cls, alt, ["(max-width: 480px)", "(max-width: 1024px)"]);
+          const meta = transformImageSync(`./src/site${decodeURI(src)}`, cls, alt, ["(max-width: 480px)", "(max-width: 1024px)"]);
           if (meta) fillPictureSourceSets(src, cls, alt, meta, width, imageTag);
         } catch {}
       }
     }
     return parsed.innerHTML;
+  });
+
+  // Table transform for Obsidian and Dataview
+  eleventyConfig.addTransform("table", function (str) {
+    const parsed = parse(str);
+    for (const t of parsed.querySelectorAll(".cm-s-obsidian > table")) {
+      let inner = t.innerHTML;
+      t.tagName = "div";
+      t.classList.add("table-wrapper");
+      t.innerHTML = `<table>${inner}</table>`;
+    }
+
+    for (const t of parsed.querySelectorAll(".cm-s-obsidian > .block-language-dataview > table")) {
+      t.classList.add("dataview");
+      t.classList.add("table-view-table");
+      t.querySelector("thead")?.classList.add("table-view-thead");
+      t.querySelector("tbody")?.classList.add("table-view-tbody");
+      t.querySelectorAll("thead > tr")?.forEach((tr) => {
+        tr.classList.add("table-view-tr-header");
+      });
+      t.querySelectorAll("thead > tr > th")?.forEach((th) => {
+        th.classList.add("table-view-th");
+      });
+    }
+    return str && parsed.innerHTML;
   });
 
   // Minifying HTML for production
@@ -244,9 +283,10 @@ module.exports = function (eleventyConfig) {
   eleventyConfig.addPlugin(faviconsPlugin, { outputDir: "dist" });
   eleventyConfig.addPlugin(tocPlugin, { ul: true, tags: ["h1", "h2", "h3", "h4", "h5", "h6"] });
 
-  eleventyConfig.addFilter("dateToZulu", function (date) {
+  // isoDate filter
+  eleventyConfig.addFilter("isoDate", function (date) {
     try {
-      return new Date(date).toISOString("dd-MM-yyyyTHH:mm:ssZ");
+      return date && new Date(date).toISOString();
     } catch {
       return "";
     }
