@@ -1,7 +1,6 @@
 const slugify = require("@sindresorhus/slugify");
 const markdownIt = require("markdown-it");
 const fs = require("fs");
-const fsp = fs.promises;
 const matter = require("gray-matter");
 const faviconsPlugin = require("eleventy-plugin-gen-favicons");
 const tocPlugin = require("eleventy-plugin-nesting-toc");
@@ -14,10 +13,9 @@ const { userMarkdownSetup, userEleventySetup } = require("./src/helpers/userSetu
 
 const Image = require("@11ty/eleventy-img");
 
-const tagRegex = /(^|\s|\>)(#[^\s!@#$%^&*()=+\.,\[{\]};:'"?><]+)(?!([^<]*>))/g;
-
 /**
  * Asynchronously transforms an image using `eleventy-img` plugin.
+ * This is a long-running task (I/O-bound), so it should not block the main process.
  */
 async function transformImage(src, cls, alt, sizes, widths = ["500", "700", "auto"]) {
   let options = {
@@ -97,6 +95,8 @@ function getAnchorLink(filePath, linkTitle) {
   return `<a ${Object.keys(attributes).map(key => `${key}="${attributes[key]}"`).join(" ")}>${innerHTML}</a>`;
 }
 
+const tagRegex = /(^|\s|\>)(#[^\s!@#$%^&*()=+\.,\[{\]};:'"?><]+)(?!([^<]*>))/g;
+
 module.exports = function (eleventyConfig) {
   eleventyConfig.setLiquidOptions({
     dynamicPartials: true,
@@ -167,7 +167,6 @@ module.exports = function (eleventyConfig) {
     return variable;
   });
 
-  // Adding the hideDataview filter
   eleventyConfig.addFilter("hideDataview", function (str) {
     return (
       str &&
@@ -175,6 +174,22 @@ module.exports = function (eleventyConfig) {
         return value.trim();
       })
     );
+  });
+
+  eleventyConfig.addFilter("dateToZulu", function (date) {
+    try {
+      return new Date(date).toISOString("dd-MM-yyyyTHH:mm:ssZ");
+    } catch {
+      return "";
+    }
+  });
+
+  eleventyConfig.addFilter("isoDate", function (date) {
+    return date && date.toISOString();
+  });
+
+  eleventyConfig.addFilter("jsonify", function (variable) {
+    return JSON.stringify(variable) || '""';
   });
 
   // Adding the callout block transformation
@@ -218,7 +233,19 @@ module.exports = function (eleventyConfig) {
         const width = imageTag.getAttribute("width") || '';
         try {
           const meta = transformImage(`./src/site${decodeURI(src)}`, cls, alt, ["(max-width: 480px)", "(max-width: 1024px)"]);
-          if (meta) fillPictureSourceSets(src, cls, alt, meta, width, imageTag);
+          if (meta) {
+            imageTag.tagName = "picture";
+            let html = `<source media="(max-width:480px)" srcset="${meta.webp[0].url}" type="image/webp" />
+                        <source media="(max-width:480px)" srcset="${meta.jpeg[0].url}" />`;
+            if (meta.webp[1]) {
+              html += `<source media="(max-width:1920px)" srcset="${meta.webp[1].url}" type="image/webp" />`;
+            }
+            if (meta.jpeg[1]) {
+              html += `<source media="(max-width:1920px)" srcset="${meta.jpeg[1].url}" />`;
+            }
+            html += `<img class="${cls}" src="${src}" alt="${alt}" width="${width}" />`;
+            imageTag.innerHTML = html;
+          }
         } catch {}
       }
     }
@@ -242,28 +269,30 @@ module.exports = function (eleventyConfig) {
     return content;
   });
 
+  eleventyConfig.addTransform("table", function (str) {
+    const parsed = parse(str);
+    for (const t of parsed.querySelectorAll(".cm-s-obsidian > table")) {
+      t.tagName = "div";
+      t.classList.add("table-wrapper");
+      t.innerHTML = `<table>${t.innerHTML}</table>`;
+    }
+
+    for (const t of parsed.querySelectorAll(".cm-s-obsidian > .block-language-dataview > table")) {
+      t.classList.add("dataview");
+      t.classList.add("table-view-table");
+      t.querySelector("thead")?.classList.add("table-view-thead");
+      t.querySelector("tbody")?.classList.add("table-view-tbody");
+      t.querySelectorAll("thead > tr")?.forEach((tr) => tr.classList.add("table-view-tr-header"));
+      t.querySelectorAll("thead > tr > th")?.forEach((th) => th.classList.add("table-view-th"));
+    }
+    return parsed.innerHTML;
+  });
+
   eleventyConfig.addPassthroughCopy("src/site/img");
   eleventyConfig.addPassthroughCopy("src/site/scripts");
   eleventyConfig.addPassthroughCopy("src/site/styles/_theme.*.css");
   eleventyConfig.addPlugin(faviconsPlugin, { outputDir: "dist" });
   eleventyConfig.addPlugin(tocPlugin, { ul: true, tags: ["h1", "h2", "h3", "h4", "h5", "h6"] });
-
-  // Adding back the dateToZulu filter
-  eleventyConfig.addFilter("dateToZulu", function (date) {
-    try {
-      return new Date(date).toISOString("dd-MM-yyyyTHH:mm:ssZ");
-    } catch {
-      return "";
-    }
-  });
-
-  eleventyConfig.addFilter("isoDate", function (date) {
-    return date && date.toISOString();
-  });
-
-  eleventyConfig.addFilter("jsonify", function (variable) {
-    return JSON.stringify(variable) || '""';
-  });
 
   eleventyConfig.addPlugin(pluginRss, {
     posthtmlRenderOptions: {
