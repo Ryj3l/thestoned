@@ -28,19 +28,15 @@ async function transformImage(src, cls, alt, sizes, widths = ["500", "700", "aut
     urlPath: "/img/optimized",          // The URL path to use in the output HTML
   };
 
-  // Async image generation (non-blocking I/O)
   await Image(src, options);
-
-  // Synchronous method for metadata fetching (because we need it immediately)
   let metadata = Image.statsSync(src, options);
   return metadata;
 }
 
 /**
- * Asynchronously fetches anchor attributes for links in markdown.
- * File reading is I/O-bound and may be slow, so we use async to avoid blocking.
+ * Fetches anchor attributes for links.
  */
-async function getAnchorAttributes(filePath, linkTitle) {
+function getAnchorAttributes(filePath, linkTitle) {
   let fileName = filePath.replaceAll("&amp;", "&");
   let header = "";
   let headerLinkPath = "";
@@ -53,140 +49,55 @@ async function getAnchorAttributes(filePath, linkTitle) {
   const title = linkTitle ? linkTitle : fileName;
   let permalink = `/notes/${slugify(filePath)}`;
   let deadLink = false;
-  
   try {
     const startPath = "./src/site/notes/";
     const fullPath = fileName.endsWith(".md")
       ? `${startPath}${fileName}`
       : `${startPath}${fileName}.md`;
-
-    // Asynchronously read the file to avoid blocking
-    const file = await fsp.readFile(fullPath, "utf8");
-    const frontMatter = matter(file);
-
-    if (frontMatter.data.permalink) {
-      permalink = frontMatter.data.permalink;
-    }
-    
-    if (frontMatter.data.tags && frontMatter.data.tags.includes("gardenEntry")) {
-      permalink = "/";
-    }
-    
-    if (frontMatter.data.noteIcon) {
-      noteIcon = frontMatter.data.noteIcon;
-    }
-  } catch {
-    // If the file does not exist or there is an error, it's a dead link
-    deadLink = true;
-  }
-
-  // If it's a dead link, return 404 attributes
-  if (deadLink) {
-    return {
-      attributes: {
-        class: "internal-link is-unresolved",
-        href: "/404",
-        target: "",
-      },
-      innerHTML: title,
-    };
-  }
-  
-  // Otherwise, return the regular anchor attributes
-  return {
-    attributes: {
-      class: "internal-link",
-      target: "",
-      "data-note-icon": noteIcon,
-      href: `${permalink}${headerLinkPath}`,
-    },
-    innerHTML: title,
-  };
-}
-
-/**
- * Synchronously fetches anchor attributes for links.
- * Used where immediate results are needed and blocking the process is acceptable.
- */
-function getAnchorAttributesSync(filePath, linkTitle) {
-  let fileName = filePath.replaceAll("&amp;", "&");
-  let header = "";
-  let headerLinkPath = "";
-  if (filePath.includes("#")) {
-    [fileName, header] = filePath.split("#");
-    headerLinkPath = `#${headerToId(header)}`;
-  }
-
-  let noteIcon = process.env.NOTE_ICON_DEFAULT;
-  const title = linkTitle ? linkTitle : fileName;
-  let permalink = `/notes/${slugify(filePath)}`;
-  let deadLink = false;
-
-  try {
-    const startPath = "./src/site/notes/";
-    const fullPath = fileName.endsWith(".md")
-      ? `${startPath}${fileName}`
-      : `${startPath}${fileName}.md`;
-
-    // Synchronously read the file to get front matter data (blocking)
     const file = fs.readFileSync(fullPath, "utf8");
     const frontMatter = matter(file);
-
     if (frontMatter.data.permalink) {
       permalink = frontMatter.data.permalink;
     }
-    
-    if (frontMatter.data.tags && frontMatter.data.tags.includes("gardenEntry")) {
+    if (frontMatter.data.tags && frontMatter.data.tags.indexOf("gardenEntry") != -1) {
       permalink = "/";
     }
-    
     if (frontMatter.data.noteIcon) {
       noteIcon = frontMatter.data.noteIcon;
     }
   } catch {
-    // If file is missing, it's a dead link
     deadLink = true;
   }
 
-  // If it's a dead link, return 404 attributes
   if (deadLink) {
     return {
       attributes: {
-        class: "internal-link is-unresolved",
-        href: "/404",
-        target: "",
+        "class": "internal-link is-unresolved",
+        "href": "/404",
+        "target": "",
       },
       innerHTML: title,
     };
   }
-
-  // Otherwise, return the correct link attributes
   return {
     attributes: {
-      class: "internal-link",
-      target: "",
+      "class": "internal-link",
+      "target": "",
       "data-note-icon": noteIcon,
-      href: `${permalink}${headerLinkPath}`,
+      "href": `${permalink}${headerLinkPath}`,
     },
     innerHTML: title,
   };
 }
 
 /**
- * Synchronously fetches the anchor link HTML.
- * It uses the synchronous version of `getAnchorAttributes` because immediate results are required.
+ * Generates the HTML for an anchor link.
  */
 function getAnchorLink(filePath, linkTitle) {
-  const { attributes, innerHTML } = getAnchorAttributesSync(filePath, linkTitle); // Synchronous call
-  return `<a ${Object.keys(attributes)
-    .map((key) => `${key}="${attributes[key]}"`)
-    .join(" ")}>${innerHTML}</a>`;
+  const { attributes, innerHTML } = getAnchorAttributes(filePath, linkTitle);
+  return `<a ${Object.keys(attributes).map(key => `${key}="${attributes[key]}"`).join(" ")}>${innerHTML}</a>`;
 }
 
-/**
- * Eleventy configuration export. 
- * Handles filters, transforms, and markdown processing.
- */
 module.exports = function (eleventyConfig) {
   eleventyConfig.setLiquidOptions({
     dynamicPartials: true,
@@ -194,22 +105,22 @@ module.exports = function (eleventyConfig) {
 
   // Markdown configuration with various plugins
   let markdownLib = markdownIt({
-    breaks: true,   // Breaks lines on newlines
-    html: true,     // Allows HTML in markdown
-    linkify: true,  // Automatically turns links into clickable links
+    breaks: true,
+    html: true,
+    linkify: true,
   })
     .use(require("markdown-it-anchor"), {
-      slugify: headerToId,  // For consistent heading IDs
+      slugify: headerToId,
     })
-    .use(require("markdown-it-mark"))   // Plugin to handle mark syntax
-    .use(require("markdown-it-footnote"))  // Plugin to handle footnotes
-    .use(require("markdown-it-mathjax3"), {  // MathJax plugin for LaTeX equations
+    .use(require("markdown-it-mark"))
+    .use(require("markdown-it-footnote"))
+    .use(require("markdown-it-mathjax3"), {
       tex: {
         inlineMath: [["$", "$"]],
       },
     })
-    .use(require("markdown-it-attrs"))  // For handling custom attributes in markdown
-    .use(require("markdown-it-task-checkbox"), {  // For handling checkboxes in markdown
+    .use(require("markdown-it-attrs"))
+    .use(require("markdown-it-task-checkbox"), {
       disabled: true,
       divWrap: false,
       divClass: "checkbox",
@@ -217,65 +128,143 @@ module.exports = function (eleventyConfig) {
       ulClass: "task-list",
       liClass: "task-list-item",
     })
-    .use(require("markdown-it-plantuml"), {  // For rendering PlantUML diagrams
+    .use(require("markdown-it-plantuml"), {
       openMarker: "```plantuml",
       closeMarker: "```",
     })
-    .use(namedHeadingsFilter)  // Filter to give names to markdown headings
-    .use(userMarkdownSetup);  // Custom user-specific markdown setup
+    .use(namedHeadingsFilter)
+    .use(userMarkdownSetup);
 
-  // Set the custom markdown library in Eleventy
   eleventyConfig.setLibrary("md", markdownLib);
 
-  // Custom Eleventy filter for transforming [[wikilinks]] into HTML links
+  // Filters for transforming links, tags, JSON, etc.
   eleventyConfig.addFilter("link", function (str) {
-    return (
-      str &&
-      str.replace(/\[\[(.*?\|.*?)\]\]/g, function (match, p1) {
-        const [fileLink, linkTitle] = p1.split("|");
-        return getAnchorLink(fileLink, linkTitle);  // Synchronous usage here
-      })
-    );
+    return str && str.replace(/\[\[(.*?\|.*?)\]\]/g, function (match, p1) {
+      const [fileLink, linkTitle] = p1.split("|");
+      return getAnchorLink(fileLink, linkTitle);
+    });
   });
 
-  // Register the jsonify filter
-  eleventyConfig.addFilter("jsonify", function (variable) {
-    return JSON.stringify(variable) || '""';
+  eleventyConfig.addFilter("taggify", function (str) {
+    return str && str.replace(tagRegex, function (match, precede, tag) {
+      return `${precede}<a class="tag" onclick="toggleTagSearch(this)" data-content="${tag}">${tag}</a>`;
+    });
   });
 
-  // Register the searchableTags filter
   eleventyConfig.addFilter("searchableTags", function (str) {
-    let tags;
-    let match = str && str.match(tagRegex);
-    if (match) {
-      tags = match
-        .map((m) => {
-          return `"${m.split("#")[1]}"`;
-        })
-        .join(", ");
-    }
+    let tags = str && str.match(tagRegex);
     if (tags) {
-      return `${tags},`;
-    } else {
+      return tags.map((m) => `"${m.split("#")[1]}"`).join(", ") + ",";
+    }
+    return "";
+  });
+
+  eleventyConfig.addFilter("validJson", function (variable) {
+    if (Array.isArray(variable)) {
+      return variable.map((x) => x.replaceAll("\\", "\\\\")).join(",");
+    } else if (typeof variable === "string") {
+      return variable.replaceAll("\\", "\\\\");
+    }
+    return variable;
+  });
+
+  // Adding the callout block transformation (from older version)
+  eleventyConfig.addTransform("callout-block", function (str) {
+    const parsed = parse(str);
+    const transformCalloutBlocks = (blockquotes = parsed.querySelectorAll("blockquote")) => {
+      for (const blockquote of blockquotes) {
+        transformCalloutBlocks(blockquote.querySelectorAll("blockquote"));
+        let content = blockquote.innerHTML;
+        let titleDiv = "", calloutType = "", isCollapsable, isCollapsed;
+        const calloutMeta = /\[!([\w-]*)\|?(\s?.*)\](\+|\-){0,1}(\s?.*)/;
+        if (!content.match(calloutMeta)) continue;
+        content = content.replace(calloutMeta, function (metaInfoMatch, callout, metaData, collapse, title) {
+          isCollapsable = Boolean(collapse);
+          isCollapsed = collapse === "-";
+          const titleText = title || `${callout.charAt(0).toUpperCase()}${callout.substring(1).toLowerCase()}`;
+          const fold = isCollapsable ? `<div class="callout-fold"><i icon-name="chevron-down"></i></div>` : ``;
+          calloutType = callout;
+          titleDiv = `<div class="callout-title"><div class="callout-title-inner">${titleText}</div>${fold}</div>`;
+          return "";
+        });
+        if (content === "\n<p>\n") content = "";
+        blockquote.tagName = "div";
+        blockquote.classList.add("callout", isCollapsable ? "is-collapsible" : "", isCollapsed ? "is-collapsed" : "");
+        blockquote.setAttribute("data-callout", calloutType.toLowerCase());
+        blockquote.innerHTML = `${titleDiv}<div class="callout-content">${content}</div>`;
+      }
+    };
+    transformCalloutBlocks();
+    return parsed.innerHTML;
+  });
+
+  // Picture element transformation
+  eleventyConfig.addTransform("picture", function (str) {
+    const parsed = parse(str);
+    for (const imageTag of parsed.querySelectorAll(".cm-s-obsidian img")) {
+      const src = imageTag.getAttribute("src");
+      if (src && src.startsWith("/") && !src.endsWith(".svg")) {
+        const cls = imageTag.classList.value;
+        const alt = imageTag.getAttribute("alt");
+        const width = imageTag.getAttribute("width") || '';
+        try {
+          const meta = transformImage(`./src/site${decodeURI(src)}`, cls, alt, ["(max-width: 480px)", "(max-width: 1024px)"]);
+          if (meta) fillPictureSourceSets(src, cls, alt, meta, width, imageTag);
+        } catch {}
+      }
+    }
+    return parsed.innerHTML;
+  });
+
+  // Minifying HTML for production
+  eleventyConfig.addTransform("htmlMinifier", (content, outputPath) => {
+    if ((process.env.NODE_ENV === "production" || process.env.ELEVENTY_ENV === "prod") && outputPath.endsWith(".html")) {
+      return htmlMinifier.minify(content, {
+        useShortDoctype: true,
+        removeComments: true,
+        collapseWhitespace: true,
+        conservativeCollapse: true,
+        preserveLineBreaks: true,
+        minifyCSS: true,
+        minifyJS: true,
+        keepClosingSlash: true,
+      });
+    }
+    return content;
+  });
+
+  eleventyConfig.addPassthroughCopy("src/site/img");
+  eleventyConfig.addPassthroughCopy("src/site/scripts");
+  eleventyConfig.addPassthroughCopy("src/site/styles/_theme.*.css");
+  eleventyConfig.addPlugin(faviconsPlugin, { outputDir: "dist" });
+  eleventyConfig.addPlugin(tocPlugin, { ul: true, tags: ["h1", "h2", "h3", "h4", "h5", "h6"] });
+
+  eleventyConfig.addFilter("dateToZulu", function (date) {
+    try {
+      return new Date(date).toISOString("dd-MM-yyyyTHH:mm:ssZ");
+    } catch {
       return "";
     }
   });
 
-  // Additional filters and transforms can be added here...
+  eleventyConfig.addPlugin(pluginRss, {
+    posthtmlRenderOptions: {
+      closingSingleTag: "slash",
+      singleTags: ["link"],
+    },
+  });
 
-  // Call user-defined setup
   userEleventySetup(eleventyConfig);
 
-  // Return the Eleventy configuration object
   return {
     dir: {
-      input: "src/site",   // Input folder for source files
-      output: "dist",      // Output folder for the build
-      data: `_data`,       // Data directory for Eleventy
+      input: "src/site",
+      output: "dist",
+      data: `_data`,
     },
-    templateFormats: ["njk", "md", "11ty.js"],  // Supported template formats
-    htmlTemplateEngine: "njk",  // Nunjucks as the HTML template engine
-    markdownTemplateEngine: false,  // Disable markdown as a template engine
-    passthroughFileCopy: true,  // Copy static files directly
+    templateFormats: ["njk", "md", "11ty.js"],
+    htmlTemplateEngine: "njk",
+    markdownTemplateEngine: false,
+    passthroughFileCopy: true,
   };
 };
