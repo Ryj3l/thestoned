@@ -1,7 +1,7 @@
 const slugify = require("@sindresorhus/slugify");
 const markdownIt = require("markdown-it");
-const fs = require("fs"); // For synchronous file operations
-const fsp = fs.promises;  // For asynchronous file operations (promises API)
+const fs = require("fs");
+const fsp = fs.promises;  // For asynchronous file operations
 const matter = require("gray-matter");
 const faviconsPlugin = require("eleventy-plugin-gen-favicons");
 const tocPlugin = require("eleventy-plugin-nesting-toc");
@@ -18,6 +18,7 @@ const tagRegex = /(^|\s|\>)(#[^\s!@#$%^&*()=+\.,\[{\]};:'"?><]+)(?!([^<]*>))/g;
 
 /**
  * Asynchronously transforms an image using `eleventy-img` plugin.
+ * This is a long-running task (I/O-bound), so it should not block the main process.
  */
 async function transformImage(src, cls, alt, sizes, widths = ["500", "700", "auto"]) {
   let options = {
@@ -158,6 +159,11 @@ module.exports = function (eleventyConfig) {
     return "";
   });
 
+  // Add missing jsonify filter
+  eleventyConfig.addFilter("jsonify", function (variable) {
+    return JSON.stringify(variable) || '""';
+  });
+
   eleventyConfig.addFilter("validJson", function (variable) {
     if (Array.isArray(variable)) {
       return variable.map((x) => x.replaceAll("\\", "\\\\")).join(",");
@@ -167,7 +173,7 @@ module.exports = function (eleventyConfig) {
     return variable;
   });
 
-  // Adding the callout block transformation from the older version
+  // Adding the callout block transformation (from older version)
   eleventyConfig.addTransform("callout-block", function (str) {
     const parsed = parse(str);
     const transformCalloutBlocks = (blockquotes = parsed.querySelectorAll("blockquote")) => {
