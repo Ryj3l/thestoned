@@ -14,6 +14,8 @@ const { userMarkdownSetup, userEleventySetup } = require("./src/helpers/userSetu
 
 const Image = require("@11ty/eleventy-img");
 
+const tagRegex = /(^|\s|\>)(#[^\s!@#$%^&*()=+\.,\[{\]};:'"?><]+)(?!([^<]*>))/g;
+
 /**
  * Asynchronously transforms an image using `eleventy-img` plugin.
  * This is a long-running task (I/O-bound), so it should not block the main process.
@@ -239,6 +241,24 @@ module.exports = function (eleventyConfig) {
   // Register the jsonify filter
   eleventyConfig.addFilter("jsonify", function (variable) {
     return JSON.stringify(variable) || '""';
+  });
+
+  // Register the searchableTags filter
+  eleventyConfig.addFilter("searchableTags", function (str) {
+    let tags;
+    let match = str && str.match(tagRegex);
+    if (match) {
+      tags = match
+        .map((m) => {
+          return `"${m.split("#")[1]}"`;
+        })
+        .join(", ");
+    }
+    if (tags) {
+      return `${tags},`;
+    } else {
+      return "";
+    }
   });
 
   // Additional filters and transforms can be added here...
