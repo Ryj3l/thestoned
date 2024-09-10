@@ -538,7 +538,7 @@ module.exports = function (eleventyConfig) {
       return "";
     }
   });
-  
+
   eleventyConfig.addFilter("jsonify", function (variable) {
     return JSON.stringify(variable) || '""';
   });
