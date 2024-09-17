@@ -2,8 +2,6 @@
 {"dg-publish":true,"permalink":"/the-stone/3-main/securely-manage-linux-in-ad/"}
 ---
 
-
-
 # [[theStone/3. Main/Securely Manage Linux in AD\|Securely Manage Linux in AD]]
 
 ## 📝 Notes
